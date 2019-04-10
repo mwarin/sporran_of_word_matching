@@ -1,4 +1,5 @@
 require_relative 'Dbman';
+require_relative 'Stopword';
 require 'i18n';
 
 I18n.available_locales = [:en]; # this could be bad for e.g. japanese/chinese/arabic/hebrew etc. 
@@ -9,8 +10,17 @@ get_oclcs_by_word_sql = 'SELECT oclc FROM ht_oclc_bow WHERE word = ?';
 get_full_title_by_oclc_sql = 'SELECT title FROM ht_oclc_title WHERE oclc = ?';
 @get_full_title_by_oclc    = @dbh.prepare(get_full_title_by_oclc_sql);
 
+@stop = Stopword.new.get_list();
+puts "# using stopwords: #{@stop.join(', ')}";
+
 def look_up_title (input)
-  input_words = input.downcase.split(' ').map{|x| x.gsub(/[^a-z]/, '')}.select{|x| x =~ /[a-z]/}.uniq;
+  input_words = input
+                .downcase
+                .split(' ')
+                .map{|x| x.gsub(/[^a-z]/, '')}
+                .select{|x| x =~ /[a-z]/}
+                .reject{|x| @stop.include?(x)}
+                .uniq;
   oclc_words = {};
 
   input_words.each do |input_word|
@@ -26,7 +36,7 @@ def look_up_title (input)
     ht_title = '';
     @get_full_title_by_oclc.execute(o).each do |row|
       ht_title      = row[:title].chomp;
-      ht_title_wc   = ht_title.split(' ').uniq.size;
+      ht_title_wc   = ht_title.split(' ').uniq.reject{|x| @stop.include?(x)}.size;
       score         = ws.size.to_f / ht_title_wc;
       scores[o]     = score;
       oclc_title[o] = ht_title; 
