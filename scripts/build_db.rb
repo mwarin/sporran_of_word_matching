@@ -3,17 +3,6 @@ require 'i18n';
 
 I18n.available_locales = [:en];
 db = SQLite3::Database.open('sporran.db');
-commands = [
-  'DROP TABLE IF EXISTS ht_oclc_title',
-  'DROP TABLE IF EXISTS ht_oclc_bow',
-  'CREATE TABLE ht_oclc_title(oclc INTEGER PRIMARY KEY, title VARCHAR(250))',
-  'CREATE TABLE ht_oclc_bow(oclc INTEGER, word VARCHAR(50), PRIMARY KEY (oclc, word))'
-];
-
-commands.each do |command|
-  puts command;
-  db.execute(command);
-end
 
 insert_title = db.prepare 'INSERT INTO ht_oclc_title (oclc, title) VALUES(?, ?)';
 insert_words = db.prepare 'INSERT INTO ht_oclc_bow (oclc, word) VALUES(?, ?)';
