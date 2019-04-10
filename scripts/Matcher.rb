@@ -63,6 +63,7 @@ class Matcher
       scores.sort_by{|h| h[:score]}.each do |h|
         puts "#{h[:score]}\t#{h[:oclc]}\t#{h[:title]}";
       end
+      puts "Total matching: #{scores.size}";
     end
     return scores;
   end

@@ -25,7 +25,7 @@ class Dbbuilder
     i = 0;
     inf.each_line do |line|
       i += 1;
-      puts i if i % 1000 == 0;
+      puts i if i % 5000 == 0;
       cols    = line.split("\t");
       oclc_t  = cols[0];
       oclc_t.split(',').each do |oclc| # could be multiple oclcs
@@ -37,10 +37,11 @@ class Dbbuilder
           end
       end
     end
+    puts i;
     [inf, outf_w, outf_t].each{|f| f.close()};
     puts "loading files into tables";
-    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_t)}' INTO TABLE ht_oclc_title (oclc, title)");
-    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_w)}' INTO TABLE ht_oclc_bow (oclc, word)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_t)}' IGNORE INTO TABLE ht_oclc_title (oclc, title)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_w)}' IGNORE INTO TABLE ht_oclc_bow (oclc, word)");
   end
   end
 
