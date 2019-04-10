@@ -1,13 +1,19 @@
-require 'sqlite3';
+require_relative 'Dbman';
 require 'i18n';
 
 I18n.available_locales = [:en];
-db = SQLite3::Database.open('sporran.db');
+dbh = Dbman.new.dbh;
 
-insert_title = db.prepare 'INSERT INTO ht_oclc_title (oclc, title) VALUES(?, ?)';
-insert_words = db.prepare 'INSERT INTO ht_oclc_bow (oclc, word) VALUES(?, ?)';
+%w[ht_oclc_title ht_oclc_bow].each do |t|
+  puts "Truncating #{t}";
+  q = dbh.prepare("TRUNCATE TABLE #{t}");
+  q.execute();
+end
 
-hathifile = '/htapps-dev/mwarin.babel/sporran_of_word_matching/data/hathifile_extract_cols.tsv';
+insert_title = dbh.prepare('INSERT INTO ht_oclc_title (oclc, title) VALUES(?, ?)');
+insert_words = dbh.prepare ('INSERT INTO ht_oclc_bow (oclc, word) VALUES(?, ?)');
+
+hathifile = '/htapps/mwarin.babel/sporran_of_word_matching/data/hathifile_extract_cols.tsv';
 inf       = File.open(hathifile, 'r');
 
 # Get oclc and title from each line in hathifile
@@ -28,13 +34,9 @@ inf.each_line do |line|
     end
   end
 end
-get_freq_sql = 'SELECT word, COUNT(word) AS c FROM ht_oclc_bow GROUP BY word HAVING c > 1 ORDER BY c';
-get_freq = db.prepare(get_freq_sql);
-get_freq.execute! do |row|
-  puts "#{row[0]}\t#{row[1]}";
-end
 
-# close all the things, order matters
-[inf, insert_title, insert_words, get_freq].each do |x|
-  x.close();
+get_freq_sql = 'SELECT word, COUNT(word) AS c FROM ht_oclc_bow GROUP BY word HAVING c > 1 ORDER BY c';
+get_freq = dbh.prepare(get_freq_sql);
+get_freq.execute() do |row|
+  puts "#{row[0]}\t#{row[1]}";
 end

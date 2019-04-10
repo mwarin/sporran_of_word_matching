@@ -1,5 +1,6 @@
 source 'https://rubygems.org';
 
+gem 'i18n';
 gem 'sqlite3';
 gem 'marc', '~> 1.0.3';
 # gem 'pry';
