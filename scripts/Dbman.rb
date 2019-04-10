@@ -14,11 +14,12 @@ class Dbman
   attr_reader :dbh;
   def initialize      
     @dbh = Mysql2::Client.new(
-      :host     => ENV['db_host'],
-      :username => ENV['db_user'],
-      :password => ENV['db_pw'  ],
-      :port     => ENV['db_port'],
-      :database => ENV['db_name'],
+      :host         => ENV['db_host'],
+      :username     => ENV['db_user'],
+      :password     => ENV['db_pw'  ],
+      :port         => ENV['db_port'],
+      :database     => ENV['db_name'],
+      :local_infile => true,
     );
   end
 end
