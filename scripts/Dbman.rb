@@ -9,13 +9,7 @@ Reads config from closest .env and sets up a MySQL connection.
 =end
 
 class Dbman
-  @@required = %w[db_host db_user db_pw db_port db_port];
-  @@required.each do |r|
-    if !ENV[r] then
-      raise "Required config item '#{r}' missing from nearest .env file.";
-    end
-  end
-
+  Dotenv.require_keys(%w[db_host db_user db_pw db_port db_port]);
   Mysql2::Client.default_query_options.merge!(:symbolize_keys => true);
   attr_reader :dbh;
   def initialize      
