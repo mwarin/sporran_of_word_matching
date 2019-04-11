@@ -23,22 +23,31 @@ class Stopword
   end
   
   def run
-    # Set threshold for what becomes a stopword.
-    threshold = 0.01;
-    if ARGV[0] == 'set' && ARGV[1] =~ /^0\.[0-9]+$/ then
-      threshold = ARGV[1].to_f;
+    
+    case ARGV[0]
+    when 'set'# Set threshold for what becomes a stopword.
+      threshold = 0.01;
+      if ARGV[1] =~ /^0\.[0-9]+$/ then
+        threshold = ARGV[1].to_f;
+      end
       puts "overriding threshold, now #{threshold}";
       set_threshold(threshold);
-    elsif ARGV[0] == 'add' then
+    when 'add' # add word(s) to stop list
       ARGV.shift;
       ARGV.each do |arg|
         add(arg);
       end
-    elsif ARGV[0] == 'del' then
+    when 'del' # remove words from stop list
       ARGV.shift;
       ARGV.each do |arg|
         del(arg);
       end
+    when 'top' # show the x (=10) most frequent words and whether or not they are in the stop list
+      count = 10;
+      if ARGV[1] =~ /^\d+$/ then
+        count = ARGV[1].to_i;
+      end
+      top(count);
     else
       raise "ummm what is #{ARGV[0]}?";
     end
@@ -94,6 +103,21 @@ class Stopword
     end
     
     return stop_list;
+  end
+
+  def top (count)
+    sql = %w[
+      SELECT word, stop, COUNT(word) AS c 
+      FROM ht_oclc_bow
+      GROUP BY word, stop
+      HAVING c > 1000
+      ORDER BY c DESC
+      LIMIT 0, ?
+    ].join(' ');
+    sth = @dbh.prepare(sql);
+    sth.execute(count).each do |row|
+      puts [:c, :word, :stop].map{ |x| row[x] }.join("\t");
+    end
   end
 end
 
