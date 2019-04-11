@@ -2,3 +2,7 @@
 .bundle/*
 *.db
 *.*~
+Gemfile.lock
+hathifile.path
+*.tsv
+*.log
