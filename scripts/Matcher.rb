@@ -39,7 +39,9 @@ class Matcher
                   .reject{|x| @stop.include?(x)}
                   .uniq;
     oclc_words = {};
-    
+
+    # put some memoization here, so that the most common words are cached
+    # when looking up multiple titles
     input_words.each do |input_word|
       @get_oclcs_by_word.execute(input_word).each do |row|
         oclc = row[:oclc];
@@ -54,6 +56,8 @@ class Matcher
       @get_full_title_by_oclc.execute(o).each do |row|
         ht_title    = row[:title].chomp;
         ht_title_wc = ht_title.split(' ').uniq.reject{|x| @stop.include?(x)}.size;
+        # write scoring algorithm so it penalizes missing words from the search term.
+        # currently this unfairly favors one word titles with one matching word
         score       = ws.size.to_f / ht_title_wc;
         scores << {:oclc => o, :score => score, :title => ht_title};
       end
