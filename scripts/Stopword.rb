@@ -19,7 +19,8 @@ class Stopword
 
   def initialize
     @dbh = Dbman.new.dbh
-    @udpate_single_sth = @dbh.prepare("UPDATE ht_oclc_bow SET stop = ? WHERE word = ?");
+    @update_single_sth = @dbh.prepare("UPDATE ht_word SET stop = ? WHERE word = ?");
+    @get_word_id_sth   = @dbh.prepare("SELECT word_id FROM ht_word WHERE word =  ?");
   end
   
   def run
@@ -56,7 +57,7 @@ class Stopword
   def set_threshold (threshold)
     # Reset all stopwords.
     puts "resetting...";
-    reset_all_sql = "UPDATE ht_oclc_bow SET stop = 0 WHERE stop = 1";
+    reset_all_sql = "UPDATE ht_word SET stop = 0 WHERE stop = 1";
     reset_all_q   = @dbh.prepare(reset_all_sql);
     reset_all_q.execute();
     
@@ -70,12 +71,12 @@ class Stopword
     puts "total words #{tot}";
     
     # Declare all words with a freq% higher than threshold to be stopwords
-    get_word_freq_sql = "SELECT word, COUNT(word) AS c FROM ht_oclc_bow GROUP BY word HAVING c > 1 ORDER BY c DESC";
+    get_word_freq_sql = "SELECT word_id, COUNT(word_id) AS c FROM ht_oclc_bow GROUP BY word_id HAVING c > 1 ORDER BY c DESC";
     get_word_freq_q   = @dbh.prepare(get_word_freq_sql);
-    set_stop_word_sql = "UPDATE ht_oclc_bow SET stop = 1 WHERE word = ?";
+    set_stop_word_sql = "UPDATE ht_word SET stop = 1 WHERE word_id = ?";
     set_stop_word_q   = @dbh.prepare(set_stop_word_sql);
     get_word_freq_q.execute().each do |row|
-      w = row[:word];
+      w = row[:word_id];
       c = row[:c];
       f = c.to_f / tot;
       if f >= threshold then
@@ -87,16 +88,16 @@ class Stopword
   
   def add (word)
     puts "adding #{word} to stop list";
-    @udpate_single_sth.execute(1, word);
+    @update_single_sth.execute(1, word);
   end
   
   def del (word)
     puts "removing #{word} from stop list";
-    @udpate_single_sth.execute(0, word);
+    @update_single_sth.execute(0, word);
   end
   
   def get_list
-    sth = @dbh.prepare("SELECT DISTINCT word FROM ht_oclc_bow WHERE stop = 1 ORDER BY word");
+    sth = @dbh.prepare("SELECT DISTINCT word FROM ht_word WHERE stop = 1 ORDER BY word");
     stop_list = [];
     sth.execute().each do |row|
       stop_list << row[:word];
@@ -107,9 +108,10 @@ class Stopword
 
   def top (count)
     sql = %w[
-      SELECT word, stop, COUNT(word) AS c 
-      FROM ht_oclc_bow
-      GROUP BY word, stop
+      SELECT w.word, w.stop, COUNT(b.word_id) AS c 
+      FROM ht_word     AS w
+      JOIN ht_oclc_bow AS b ON (w.word_id = b.word_id)
+      GROUP BY w.word, w.stop
       HAVING c > 1000
       ORDER BY c DESC
       LIMIT 0, ?

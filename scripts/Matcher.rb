@@ -21,7 +21,7 @@ class Matcher
   def initialize (mode = {:interactive => false})
     @mode = mode;
     @dbh = Dbman.new.dbh;
-    get_oclcs_by_word_sql = 'SELECT oclc FROM ht_oclc_bow WHERE word = ?';
+    get_oclcs_by_word_sql = 'SELECT b.oclc FROM ht_oclc_bow AS b JOIN ht_word AS w ON (b.word_id = w.word_id) WHERE w.stop = 0 AND w.word = ?';
     @get_oclcs_by_word    = @dbh.prepare(get_oclcs_by_word_sql);
     
     get_full_title_by_oclc_sql = 'SELECT title FROM ht_oclc_title WHERE oclc = ?';
@@ -58,7 +58,7 @@ class Matcher
         ht_title_wc = ht_title.split(' ').uniq.reject{|x| @stop.include?(x)}.size;
         # write scoring algorithm so it penalizes missing words from the search term.
         # currently this unfairly favors one word titles with one matching word
-        score       = ws.size.to_f / ht_title_wc;
+        score       = ws.size.to_f / ht_title_wc; # precision
         scores << {:oclc => o, :score => score, :title => ht_title};
       end
     end

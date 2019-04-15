@@ -10,5 +10,7 @@ CREATE TABLE ht_oclc_bow(oclc INTEGER, word_id INTEGER, PRIMARY KEY (oclc, word_
 -- DROP INDEX ht_oclc_title_title ON ht_oclc_title;
 
 CREATE INDEX ht_word_word        USING BTREE ON ht_word (word);
+CREATE INDEX ht_word_stop        USING BTREE ON ht_word (stop);
 CREATE INDEX ht_oclc_bow_word_id USING BTREE ON ht_oclc_bow (word_id);
-CREATE INDEX ht_oclc_title_title USING BTREE ON ht_oclc_title (title); 
+CREATE INDEX ht_oclc_title_title USING BTREE ON ht_oclc_title (title);
+CREATE INDEX ht_oclc_title_oclc  USING BTREE ON ht_oclc_title (oclc); 
