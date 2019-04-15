@@ -30,8 +30,8 @@ class Matcher
     @stop = Stopword.new.get_list();
   end
   
-  def look_up_title (input)
-    input_words = input
+  def look_up_title (search_title)
+    search_title_words = search_title
                   .downcase
                   .split(' ')
                   .map{|x| x.gsub(/[^a-z]/, '')}
@@ -42,30 +42,41 @@ class Matcher
 
     # put some memoization here, so that the most common words are cached
     # when looking up multiple titles
-    input_words.each do |input_word|
-      @get_oclcs_by_word.execute(input_word).each do |row|
+    search_title_words.each do |search_title_word|
+      @get_oclcs_by_word.execute(search_title_word).each do |row|
         oclc = row[:oclc];
         oclc_words[oclc] ||= [];
-        oclc_words[oclc] << input_word;
+        oclc_words[oclc] << search_title_word;
       end
     end
+    search_title_wc = search_title_words.size;
     scores     = [];
     oclc_title = {}
-    oclc_words.each do |o,ws|
-      ht_title = '';
-      @get_full_title_by_oclc.execute(o).each do |row|
-        ht_title    = row[:title].chomp;
-        ht_title_wc = ht_title.split(' ').uniq.reject{|x| @stop.include?(x)}.size;
-        # write scoring algorithm so it penalizes missing words from the search term.
-        # currently this unfairly favors one word titles with one matching word
-        score       = ws.size.to_f / ht_title_wc; # precision
-        scores << {:oclc => o, :score => score, :title => ht_title};
+    oclc_words.each do |match_ocn, match_words|
+      match_title = '';
+      @get_full_title_by_oclc.execute(match_ocn).each do |row|
+        match_title    = row[:title].chomp;
+        match_title_words = match_title.downcase.split(' ').uniq.reject{|x| @stop.include?(x)};
+        
+        precision = match_words.size.to_f / search_title_words.size.to_f;
+        recall    = match_words.size.to_f / (search_title_words + match_title_words).uniq.size.to_f;
+        score     = (precision + recall)  / 2;
+        
+        scores << {
+          :oclc=>match_ocn,
+          :score=>score,
+          :title=>match_title,
+          :search_words=>search_title_words,
+          :match_words=>match_words,
+          :precision=>precision,
+          :recall=>recall
+        };
       end
     end
     if @mode[:interactive] then
       # print sorted by score
       scores.sort_by{|h| h[:score]}.each do |h|
-        puts "#{h[:score]}\t#{h[:oclc]}\t#{h[:title]}";
+        puts "#{h[:score]}\tp#{h[:precision]}\tr#{h[:recall]}\t#{h[:oclc]}\t#{h[:search_words].join(',')}\t#{h[:match_words].join(',')}";
       end
       puts "Total matching: #{scores.size}";
     end
@@ -74,13 +85,13 @@ class Matcher
   
   def run
     if ARGV.empty? then
-      while input = gets.chomp do
-        break if input == '';
-        look_up_title(input)
+      while search_title = gets.chomp do
+        break if search_title == '';
+        look_up_title(search_title);
       end
     else
-      ARGV.each do |input|
-        look_up_title(input);
+      ARGV.each do |search_title|
+        look_up_title(search_title);
       end
     end
   end
