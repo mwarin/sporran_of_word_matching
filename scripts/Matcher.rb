@@ -39,7 +39,7 @@ class Matcher
         WHERE w.stop = 0 AND w.word IN (#{qmarks})
         GROUP BY b.oclc HAVING c > #{search_words.size / 2}
       ].join(' ');
-      puts "caching query (@query_cache[#{search_words.size}]): #{sql}";
+      # puts "caching query (@query_cache[#{search_words.size}]): #{sql}";
       q = @dbh.prepare(sql);
       @query_cache[search_words.size] = q;
     end
@@ -47,19 +47,25 @@ class Matcher
     return @query_cache[search_words.size];
   end
 
+  def str_to_clean_arr (str)
+    str
+      .downcase
+      .split(' ')
+      .map{|x| x.gsub(/[^a-z]/, '')}
+      .select{|x| x =~ /[a-z]/}
+      .reject{|x| @stop.include?(x)}
+      .uniq;
+  end
+  
   def look_up_title (search_title)
-    search_title_words = search_title
-                  .downcase
-                  .split(' ')
-                  .map{|x| x.gsub(/[^a-z]/, '')}
-                  .select{|x| x =~ /[a-z]/}
-                  .reject{|x| @stop.include?(x)}
-                  .uniq;
+    search_title_words = str_to_clean_arr(search_title);
+    puts "## Search title: #{search_title}";
+    puts "## Search words: #{search_title_words.join(',')}";
     oclc_words = {};
 
     # get a (cached) query with the right number of WHERE-args and proportional HAVING COUNT(x).
     get_oclcs_q = get_words_oclc_q(search_title_words);
-
+    
     # get all ocns and their associated words based on search title
     res = get_oclcs_q.execute(*search_title_words);
     res.each do |row|
@@ -77,7 +83,7 @@ class Matcher
       res = @get_full_title_by_oclc.execute(match_ocn);
       res.each do |row|
         match_title    = row[:title].chomp;
-        match_title_words = match_title.downcase.split(' ').uniq.reject{|x| @stop.include?(x)};
+        match_title_words = str_to_clean_arr(match_title);
         precision = match_words.size.to_f / search_title_words.size.to_f;
         recall    = match_words.size.to_f / (search_title_words + match_title_words).uniq.size.to_f;
         score     = (precision + recall)  / 2;
@@ -98,8 +104,15 @@ class Matcher
     end
     if @mode[:interactive] then
       # print sorted by score
+      puts %w[score prec recall oclc match_w title].join("\t");
       scores.sort_by{|h| h[:score]}.each do |h|
-        puts "#{h[:score]}\tp#{h[:precision]}\tr#{h[:recall]}\t#{h[:oclc]}\t#{h[:search_words].join(',')}\t#{h[:match_words].join(',')}";
+        puts ['%.3f' % h[:score],
+              '%.3f' % h[:precision],
+              '%.3f' % h[:recall],
+              h[:oclc],
+              h[:match_words].join(','),
+              h[:title],
+             ].join("\t");
       end
       puts "Total matching: #{scores.size}";
     end
