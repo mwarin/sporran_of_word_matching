@@ -63,6 +63,10 @@ class Matcher
     puts "## Search words: #{search_title_words.join(',')}";
     oclc_words = {};
 
+    if search_title_words.empty? then
+      return [];
+    end
+    
     # get a (cached) query with the right number of WHERE-args and proportional HAVING COUNT(x).
     get_oclcs_q = get_words_oclc_q(search_title_words);
     
