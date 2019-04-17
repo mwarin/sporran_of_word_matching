@@ -41,6 +41,8 @@ def run
   fh.each_line do |line|
     lang_count = {};
     line.strip!
+    pct = check_pct_common_latin(line);
+    next if pct >= 0.75;
     ws = line.split(/\s+/);
     wc = ws.size;
 
@@ -50,7 +52,7 @@ def run
       tot_lang_count[lang] += count;
     end
     if !lang_count.empty?
-      puts line;
+      puts "#{pct}\t#{line}";
       puts "Of #{wc}: #{lang_count}";
     end
   end  
@@ -61,6 +63,10 @@ def run
   tot_lang_count.sort_by{|k,v| v}.each do |lang, count|
     puts "#{lang}:#{count}" if count > 0;
   end
+end
+
+def check_pct_common_latin (str)
+  str.scan(/\p{Latin}|\p{Common}/).size.to_f / str.length;
 end
 
 def check_lang_count (str, lang)
