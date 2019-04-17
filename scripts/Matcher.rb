@@ -138,5 +138,5 @@ class Matcher
 end
 
 if $0 == __FILE__ then
-  Matcher.new({:interactive => true, :min_score=>0.33}).run();
+  Matcher.new({:interactive => true, :min_score=>0.67}).run();
 end
