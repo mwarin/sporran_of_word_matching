@@ -3,9 +3,10 @@ require 'i18n';
 
 I18n.available_locales = [:en];
 
-@@latin_common_rx  = Regexp.new(/\p{Latin}|\p{Common}/);
-@@common_non_num_rx = Regexp.new(/[\p{Common}&&[^0-9]]/);
 class Dbbuilder
+  @@latin_common_rx   = Regexp.new(/\p{Latin}|\p{Common}/);
+  @@common_non_num_rx = Regexp.new(/[\p{Common}&&[^0-9]]/);
+
   attr_reader :word_cache, :cache_hit, :cache_miss;
   def initialize
     @dbh = Dbman.new.dbh;
@@ -42,7 +43,7 @@ class Dbbuilder
       word_id = row[:word_id];
     end
     res.free;
-    
+
     if word_id.nil? then
       @set_word_id_sth.execute(word);
       word_id = @set_word_id_sth.last_id;
@@ -59,29 +60,25 @@ class Dbbuilder
         @word_cache.delete(k);
       end
     end
-    
+
     return word_id;
   end
 
-  def check_pct_common_latin (str)
-    str.scan(@@latin_common_rx).size.to_f / str.length;
+  def translit_if_possible (str)
+    translit = I18n.transliterate(str).gsub(/\?+/, '');
+    if translit == '' then
+      return str;
+    end
+    return translit;
   end
-
+  
   def process_line (line)
     cols    = line.strip.split("\t");
     oclc_t  = cols[0];
-    title_t = cols[1];
-    title   = '';
-    return if title_t.nil?
-    if (check_pct_common_latin(title_t) >= 0.75) then
-      # make sure we don't destroy non-latin text
-      title = I18n.transliterate(title_t);
-    else
-      title = title_t;        
-    end
-    words = title.downcase.split(@@common_non_num_rx).uniq;
-    puts "title [#{title}]";
-    puts "words [#{words.join(',')}]"
+    title   = cols[1];
+    return if title.nil?
+
+    words = title.downcase.split(@@common_non_num_rx).map{|x| translit_if_possible(x)}.uniq.reject{|x| x == '' || x =~ /\s/};
     oclc_t.split(',').each do |oclc| # could be multiple oclcs
       @outf_t.puts([oclc, title].join("\t"));
       words.each do |w|
@@ -89,7 +86,7 @@ class Dbbuilder
       end
     end
   end
-  
+
   def load (hathifile)
     inf    = File.open(hathifile, 'r');
     @outf_t = File.open('./oclc_title.tsv', 'w');
