@@ -3,6 +3,8 @@ require 'i18n';
 
 I18n.available_locales = [:en];
 
+@@latin_common_rx  = Regexp.new(/\p{Latin}|\p{Common}/);
+@@common_non_num_rx = Regexp.new(/[\p{Common}&&[^0-9]]/);
 class Dbbuilder
   attr_reader :word_cache, :cache_hit, :cache_miss;
   def initialize
@@ -60,12 +62,38 @@ class Dbbuilder
     
     return word_id;
   end
+
+  def check_pct_common_latin (str)
+    str.scan(@@latin_common_rx).size.to_f / str.length;
+  end
+
+  def process_line (line)
+    cols    = line.strip.split("\t");
+    oclc_t  = cols[0];
+    title_t = cols[1];
+    title   = '';
+    return if title_t.nil?
+    if (check_pct_common_latin(title_t) >= 0.75) then
+      # make sure we don't destroy non-latin text
+      title = I18n.transliterate(title_t);
+    else
+      title = title_t;        
+    end
+    words = title.downcase.split(@@common_non_num_rx).uniq;
+    puts "title [#{title}]";
+    puts "words [#{words.join(',')}]"
+    oclc_t.split(',').each do |oclc| # could be multiple oclcs
+      @outf_t.puts([oclc, title].join("\t"));
+      words.each do |w|
+        @outf_w.puts([oclc, get_word_id(w)].join("\t"));
+      end
+    end
+  end
   
   def load (hathifile)
     inf    = File.open(hathifile, 'r');
-    outf_t = File.open('./oclc_title.tsv', 'w');
-    outf_w = File.open('./oclc_word.tsv', 'w');
-
+    @outf_t = File.open('./oclc_title.tsv', 'w');
+    @outf_w = File.open('./oclc_word.tsv', 'w');
     # Get oclc and title from each line in hathifile
     i = 0;
     inf.each_line do |line|
@@ -73,23 +101,13 @@ class Dbbuilder
       if i % 10000 == 0 then
         puts "#{i} #{Time.new} cache size #{@word_cache.keys.size}, cache full #{@cache_full} times, cache hit/miss #{@cache_hit}/#{@cache_miss}";
       end
-
-      cols    = line.split("\t");
-      oclc_t  = cols[0];
-      oclc_t.split(',').each do |oclc| # could be multiple oclcs
-        title = I18n.transliterate(cols[1]);
-        outf_t.puts([oclc, title].join("\t"));
-          words     = title.downcase.split(' ').map{|x| x.gsub(/[^a-z]/, '')}.select{|x| x =~ /[a-z]/}.uniq;
-          words.each do |w|
-            outf_w.puts([oclc, get_word_id(w)].join("\t"));
-          end
-      end
+      process_line(line);
     end
     puts i;
-    [inf, outf_w, outf_t].each{|f| f.close()};
+    [inf, @outf_w, @outf_t].each{|f| f.close()};
     puts "loading files into tables";
-    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_t)}' IGNORE INTO TABLE ht_oclc_title (oclc, title)");
-    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(outf_w)}' IGNORE INTO TABLE ht_oclc_bow (oclc, word_id)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_t)}' IGNORE INTO TABLE ht_oclc_title (oclc, title)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_w)}' IGNORE INTO TABLE ht_oclc_bow (oclc, word_id)");
   end
 end
 
