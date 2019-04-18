@@ -4,8 +4,13 @@ require_relative 'Strutil';
 
 =begin
 
-Run interactively from command line:
+Run from command line:
 $ bundle exec ruby scripts/Matcher.rb "history of lobsters"
+
+... or interactively:
+
+$ bundle exec ruby scripts/Matcher.rb
+> history of lobsters
 
 ... or use as an object:
 
