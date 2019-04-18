@@ -33,24 +33,25 @@ class Matcher
 
   def get_words_oclc_q (search_words)
     # Caches query for variable number of WHERE-args and proportional HAVING
-    if !@query_cache.key?(search_words.size) then
-      qmarks = (['?'] * search_words.size).join(',');
+    wc = search_words.size;
+    if !@query_cache.key?(wc) then
+      qmarks = (['?'] * wc).join(',');
       # if there are e.g. 8 search_words then require at least 8/2 in the HAVING.
       sql    = %W[
         SELECT b.oclc, COUNT(b.word_id) AS c, GROUP_CONCAT(w.word) AS words
         FROM ht_oclc_bow AS b
         JOIN ht_word     AS w ON (b.word_id = w.word_id)
         WHERE w.stop = 0 AND w.word IN (#{qmarks})
-        GROUP BY b.oclc HAVING c > #{search_words.size / 2}
+        GROUP BY b.oclc HAVING c > #{wc / 2}
       ].join(' ');
-      # puts "caching query (@query_cache[#{search_words.size}]): #{sql}";
+      # puts "caching query (@query_cache[#{wc}]): #{sql}";
       q = @dbh.prepare(sql);
-      @query_cache[search_words.size] = q;
+      @query_cache[wc] = q;
     end
 
-    return @query_cache[search_words.size];
+    return @query_cache[wc];
   end
-  
+
   def look_up_title (search_title)
     search_title_words = Strutil.get_words(search_title).reject{|w| @stop_h.key?(w)};
     puts "## Search title: #{search_title}";
@@ -60,20 +61,20 @@ class Matcher
     if search_title_words.empty? then
       return [];
     end
-    
+
     # get a (cached) query with the right number of WHERE-args and proportional HAVING COUNT(x).
     get_oclcs_q = get_words_oclc_q(search_title_words);
-    
+
     # get all ocns and their associated words based on search title
     res = get_oclcs_q.execute(*search_title_words);
     res.each do |row|
       oclc = row[:oclc];
-      oclc_words[oclc] = row[:words].split(',')
+      oclc_words[oclc] = row[:words].split(',');
     end
     res.free;
 
     scores     = [];
-    oclc_title = {}
+    oclc_title = {};
 
     # for each oclc=>[words], compare against search_title and score
     oclc_words.each do |match_ocn, match_words|
