@@ -106,6 +106,14 @@ class Stopword
     return stop_list;
   end
 
+  def get_hash
+    h = {};
+    get_list.each do |s|
+      h[s] = true;
+    end
+    return h;
+  end
+  
   def top (count)
     sql = %w[
       SELECT w.word, w.stop, COUNT(b.word_id) AS c 

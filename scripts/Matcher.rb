@@ -23,7 +23,7 @@ class Matcher
     @query_cache = {};
     get_full_title_by_oclc_sql = 'SELECT title FROM ht_oclc_title WHERE oclc = ?';
     @get_full_title_by_oclc    = @dbh.prepare(get_full_title_by_oclc_sql);
-    @stop = Stopword.new.get_list();
+    @stop_h = Stopword.new.get_list();
   end
 
   def get_words_oclc_q (search_words)
@@ -47,7 +47,7 @@ class Matcher
   end
   
   def look_up_title (search_title)
-    search_title_words = Strutil.get_words(search_title).reject{|w| @stop.include?(w)};
+    search_title_words = Strutil.get_words(search_title).reject{|w| @stop_h.key?(w)};
     puts "## Search title: #{search_title}";
     puts "## Search words: #{search_title_words.join(',')}";
     oclc_words = {};
@@ -76,7 +76,7 @@ class Matcher
       res = @get_full_title_by_oclc.execute(match_ocn);
       res.each do |row|
         match_title    = row[:title].chomp;
-        match_title_words = Strutil.get_words(match_title).reject{|w| @stop.include?(w)};
+        match_title_words = Strutil.get_words(match_title).reject{|w| @stop_h.key?(w)};
         precision = match_words.size.to_f / search_title_words.size.to_f;
         recall    = match_words.size.to_f / (search_title_words + match_title_words).uniq.size.to_f;
         score     = (precision + recall)  / 2;
