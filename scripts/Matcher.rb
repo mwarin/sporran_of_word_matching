@@ -23,7 +23,7 @@ class Matcher
     @query_cache = {};
     get_full_title_by_oclc_sql = 'SELECT title FROM ht_oclc_title WHERE oclc = ?';
     @get_full_title_by_oclc    = @dbh.prepare(get_full_title_by_oclc_sql);
-    @stop_h = Stopword.new.get_list();
+    @stop_h = Stopword.new.get_hash();
   end
 
   def get_words_oclc_q (search_words)
