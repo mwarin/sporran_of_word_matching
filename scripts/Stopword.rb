@@ -18,7 +18,7 @@ $ bundle exec ruby scripts/update_stopwords.rb del pear coconut kiwi
 class Stopword
 
   def initialize
-    @dbh = Dbman.new.dbh
+    @dbh = Dbman.new.dbh;
     @update_single_sth = @dbh.prepare("UPDATE ht_word SET stop = ? WHERE word = ?");
     @get_word_id_sth   = @dbh.prepare("SELECT word_id FROM ht_word WHERE word =  ?");
   end
