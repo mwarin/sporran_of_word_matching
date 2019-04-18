@@ -1,12 +1,7 @@
 require_relative 'Dbman';
-require 'i18n';
-
-I18n.available_locales = [:en];
+require_relative 'Strutil';
 
 class Dbbuilder
-  @@latin_common_rx   = Regexp.new(/\p{Latin}|\p{Common}/);
-  @@common_non_num_rx = Regexp.new(/[\p{Common}&&[^0-9]]/);
-
   attr_reader :word_cache, :cache_hit, :cache_miss;
   def initialize
     @dbh = Dbman.new.dbh;
@@ -20,7 +15,7 @@ class Dbbuilder
     @cache_full = 0;
   end
 
-  def clean
+  def truncate_tables
     %w[ht_oclc_title ht_oclc_bow ht_word].each do |t|
       puts "Truncating #{t}";
       q = @dbh.prepare("TRUNCATE TABLE #{t}");
@@ -63,14 +58,6 @@ class Dbbuilder
 
     return word_id;
   end
-
-  def translit_if_possible (str)
-    translit = I18n.transliterate(str).gsub(/\?+/, '');
-    if translit == '' then
-      return str;
-    end
-    return translit;
-  end
   
   def process_line (line)
     cols    = line.strip.split("\t");
@@ -78,7 +65,7 @@ class Dbbuilder
     title   = cols[1];
     return if title.nil?
 
-    words = title.downcase.split(@@common_non_num_rx).map{|x| translit_if_possible(x)}.uniq.reject{|x| x == '' || x =~ /\s/};
+    words = Strutil.get_words(title);
     oclc_t.split(',').each do |oclc| # could be multiple oclcs
       @outf_t.puts([oclc, title].join("\t"));
       words.each do |w|
@@ -103,7 +90,7 @@ class Dbbuilder
     puts i;
     [inf, @outf_w, @outf_t].each{|f| f.close()};
     puts "loading files into tables";
-    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_t)}' IGNORE INTO TABLE ht_oclc_title (oclc, title)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_t)}' IGNORE INTO TABLE ht_oclc_title CHARACTER SET utf8mb4 (oclc, title)");
     @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_w)}' IGNORE INTO TABLE ht_oclc_bow (oclc, word_id)");
   end
 end
@@ -114,7 +101,7 @@ if $0 == __FILE__ then
   else
     puts Time.new;
     dbb = Dbbuilder.new();
-    dbb.clean();
+    dbb.truncate_tables();
     dbb.load(ARGV[0]);
     puts Time.new;
     puts "cache hit/miss = #{dbb.cache_hit} / #{dbb.cache_miss}";

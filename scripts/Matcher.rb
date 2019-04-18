@@ -1,7 +1,6 @@
 require_relative 'Dbman';
 require_relative 'Stopword';
-require 'i18n';
-I18n.available_locales = [:en]; # this could be bad for e.g. japanese/chinese/arabic/hebrew etc.
+require_relative 'Strutil';
 
 =begin
 
@@ -46,19 +45,9 @@ class Matcher
 
     return @query_cache[search_words.size];
   end
-
-  def str_to_clean_arr (str)
-    str
-      .downcase
-      .split(' ')
-      .map{|x| x.gsub(/[^a-z]/, '')}
-      .select{|x| x =~ /[a-z]/}
-      .reject{|x| @stop.include?(x)}
-      .uniq;
-  end
   
   def look_up_title (search_title)
-    search_title_words = str_to_clean_arr(search_title);
+    search_title_words = Strutil.get_words(search_title).reject{|w| @stop.include?(w)};
     puts "## Search title: #{search_title}";
     puts "## Search words: #{search_title_words.join(',')}";
     oclc_words = {};
@@ -87,7 +76,7 @@ class Matcher
       res = @get_full_title_by_oclc.execute(match_ocn);
       res.each do |row|
         match_title    = row[:title].chomp;
-        match_title_words = str_to_clean_arr(match_title);
+        match_title_words = Strutil.get_words(match_title).reject{|w| @stop.include?(w)};
         precision = match_words.size.to_f / search_title_words.size.to_f;
         recall    = match_words.size.to_f / (search_title_words + match_title_words).uniq.size.to_f;
         score     = (precision + recall)  / 2;
