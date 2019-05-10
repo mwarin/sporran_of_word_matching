@@ -54,8 +54,8 @@ class Matcher
 
   def look_up_title (search_title)
     search_title_words = Strutil.get_words(search_title).reject{|w| @stop_h.key?(w)};
-    puts "## Search title: #{search_title}";
-    puts "## Search words: #{search_title_words.join(',')}";
+    # STDERR.puts "## Search title: #{search_title}";
+    # STDERR.puts "## Search words: #{search_title_words.join(',')}";
     oclc_words = {};
 
     if search_title_words.empty? then
@@ -91,11 +91,11 @@ class Matcher
           scores << {
             :oclc         => match_ocn,
             :score        => score,
+            :precision    => precision,
+            :recall       => recall,
             :title        => match_title,
             :search_words => search_title_words,
             :match_words  => match_words,
-            :precision    => precision,
-            :recall       => recall
           };
         end
       end
