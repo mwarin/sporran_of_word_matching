@@ -1,4 +1,5 @@
 require_relative 'Matcher';
+require 'json';
 
 =begin
 
@@ -37,16 +38,14 @@ class FileMatcher
   def run
     @files.each do |f|
       get_records(f) do |id, record|
-        puts "{\"id\": #{id}, \"results\": [\n";
+        out_hash = {:id => id, :lookup_title => record, :results => []};
         results = @matcher.look_up_title(record);
-        if results.empty? then
-          puts "N/A";
-        else
+        if !results.empty? then
           results.sort_by{|x| x[:score]}.each do |r|
-            puts [:score, :oclc, :title].map{|x| r[x]}.join("\t");
+            out_hash[:results] << r;
           end
         end
-        puts "]}";
+        puts out_hash.to_json;
       end
     end
   end  
