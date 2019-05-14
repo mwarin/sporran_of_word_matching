@@ -9,6 +9,7 @@ class Strutil
   # get_words("1789-1795. La Révolution à Dijon.")
   # -> %w[1789 1795 la revolution a dijon]
   def Strutil.get_words (str)
+    return [] if str.nil?;
     str.downcase.split(@@common_non_num_rx).map{|x| translit_if_possible(x)}.uniq.reject{|x| x == '' || x =~ /\s/};
   end
 

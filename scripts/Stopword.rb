@@ -120,7 +120,7 @@ class Stopword
       FROM ht_word     AS w
       JOIN ht_oclc_bow AS b ON (w.word_id = b.word_id)
       GROUP BY w.word, w.stop
-      HAVING c > 1000
+      HAVING c > 100
       ORDER BY c DESC
       LIMIT 0, ?
     ].join(' ');

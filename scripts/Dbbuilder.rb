@@ -16,7 +16,7 @@ class Dbbuilder
   end
 
   def truncate_tables
-    %w[ht_oclc_title ht_oclc_bow ht_word].each do |t|
+    %w[ht_oclc_title ht_oclc_author ht_oclc_bow ht_word].each do |t|
       puts "Truncating #{t}";
       q = @dbh.prepare("TRUNCATE TABLE #{t}");
       q.execute();
@@ -63,11 +63,14 @@ class Dbbuilder
     cols    = line.strip.split("\t");
     oclc_t  = cols[0];
     title   = cols[1];
-    return if title.nil?
+    author  = cols[2];
 
-    words = Strutil.get_words(title);
+    words = Strutil.get_words(title) + Strutil.get_words(author);
+    return if words.empty?
     oclc_t.split(',').each do |oclc| # could be multiple oclcs
-      @outf_t.puts([oclc, title].join("\t"));
+      next if oclc.to_i == 0;
+      @outf_t.puts([oclc, title].join("\t"))  if !title.nil?  && !title.empty?;
+      @outf_a.puts([oclc, author].join("\t")) if !author.nil? && !author.empty?;
       words.each do |w|
         @outf_w.puts([oclc, get_word_id(w)].join("\t"));
       end
@@ -75,8 +78,9 @@ class Dbbuilder
   end
 
   def load (hathifile)
-    inf    = File.open(hathifile, 'r');
+    inf     = File.open(hathifile, 'r');
     @outf_t = File.open('./oclc_title.tsv', 'w');
+    @outf_a = File.open('./oclc_author.tsv', 'w');
     @outf_w = File.open('./oclc_word.tsv', 'w');
     # Get oclc and title from each line in hathifile
     i = 0;
@@ -88,10 +92,15 @@ class Dbbuilder
       process_line(line);
     end
     puts i;
-    [inf, @outf_w, @outf_t].each{|f| f.close()};
+    [inf, @outf_t, @outf_a, @outf_w].each{|f| f.close()};
     puts "loading files into tables";
     @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_t)}' IGNORE INTO TABLE ht_oclc_title CHARACTER SET utf8mb4 (oclc, title)");
+    @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_a)}' IGNORE INTO TABLE ht_oclc_author CHARACTER SET utf8mb4 (oclc, author)");
     @dbh.query("LOAD DATA LOCAL INFILE '#{File.expand_path(@outf_w)}' IGNORE INTO TABLE ht_oclc_bow (oclc, word_id)");
+
+    puts "cleaning up...";
+    @dbh.query("DELETE FROM ht_oclc_title  WHERE title  = '' OR oclc = 0");
+    @dbh.query("DELETE FROM ht_oclc_author WHERE author = '' OR oclc = 0");
   end
 end
 
