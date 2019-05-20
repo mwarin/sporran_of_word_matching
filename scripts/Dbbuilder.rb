@@ -5,10 +5,10 @@ class Dbbuilder
   attr_reader :word_cache, :cache_hit, :cache_miss;
   def initialize
     @dbh = Dbman.new.dbh;
-    @word_cache      = {};
+    @word_cache      = {'title' => {}, 'author' => {}};
     @word_cache_max  = 20000;
-    @get_word_id_sth = @dbh.prepare("SELECT word_id FROM ht_word WHERE word = ?");
-    @set_word_id_sth = @dbh.prepare("INSERT INTO ht_word (word) VALUES (?)");
+    @get_word_id_sth = @dbh.prepare("SELECT word_id FROM ht_word WHERE word = ? AND kind = ?");
+    @set_word_id_sth = @dbh.prepare("INSERT INTO ht_word (word, kind) VALUES (?, ?)");
     @get_last_id_sth = @dbh.prepare("SELECT LAST_INSERT_ID() AS id");
     @cache_hit  = 0;
     @cache_miss = 0;
@@ -23,36 +23,37 @@ class Dbbuilder
     end
   end
 
-  def get_word_id (word)
+  def get_word_id (word, kind)
+    
     # memoized
-    if @word_cache.key?(word) then
+    if @word_cache[kind].key?(word) then
       @cache_hit += 1;
-      @word_cache[word][:freq] += 1;
-      return @word_cache[word][:val];
+      @word_cache[kind][word][:freq] += 1;
+      return @word_cache[kind][word][:val];
     end
     @cache_miss += 1;
 
     word_id = nil;
-    res = @get_word_id_sth.execute(word);
+    res = @get_word_id_sth.execute(word, kind);
     res.each do |row|
       word_id = row[:word_id];
     end
     res.free;
 
     if word_id.nil? then
-      @set_word_id_sth.execute(word);
+      @set_word_id_sth.execute(word, kind);
       word_id = @set_word_id_sth.last_id;
     end
     if word_id.nil? then
       raise "unable to find word_id for #{word}";
     end
-    @word_cache[word] = {:val => word_id, :freq => 1};
+    @word_cache[kind][word] = {:val => word_id, :freq => 1};
 
     # When cache is full, throw out the least frequent 1/5th.
-    if @word_cache.keys.size > @word_cache_max then
+    if @word_cache[kind].keys.size > @word_cache_max then
       @cache_full += 1;
-      @word_cache.sort_by{|k,v| v[:freq]}.first(@word_cache_max / 5).each do |k,v|
-        @word_cache.delete(k);
+      @word_cache[kind].sort_by{|k,v| v[:freq]}.first(@word_cache_max / 5).each do |k,v|
+        @word_cache[kind].delete(k);
       end
     end
 
@@ -65,14 +66,18 @@ class Dbbuilder
     title   = cols[1];
     author  = cols[2];
 
-    words = Strutil.get_words(title) + Strutil.get_words(author);
-    return if words.empty?
+    words_t = Strutil.get_words(title);
+    words_a = Strutil.get_words(author);
+    return if (words_t + words_a).empty?
     oclc_t.split(',').each do |oclc| # could be multiple oclcs
       next if oclc.to_i == 0;
       @outf_t.puts([oclc, title].join("\t"))  if !title.nil?  && !title.empty?;
       @outf_a.puts([oclc, author].join("\t")) if !author.nil? && !author.empty?;
-      words.each do |w|
-        @outf_w.puts([oclc, get_word_id(w)].join("\t"));
+      words_t.each do |w|
+        @outf_w.puts([oclc, get_word_id(w, 'title'), 'title'].join("\t"));
+      end
+      words_a.each do |w|
+        @outf_w.puts([oclc, get_word_id(w, 'author'), 'author'].join("\t"));
       end
     end
   end
@@ -87,7 +92,7 @@ class Dbbuilder
     inf.each_line do |line|
       i += 1;
       if i % 10000 == 0 then
-        puts "#{i} #{Time.new} cache size #{@word_cache.keys.size}, cache full #{@cache_full} times, cache hit/miss #{@cache_hit}/#{@cache_miss}";
+        puts "#{i} #{Time.new} cache size #{@word_cache['author'].keys.size + @word_cache['title'].keys.size}, cache full #{@cache_full} times, cache hit/miss #{@cache_hit}/#{@cache_miss}";
       end
       process_line(line);
     end
