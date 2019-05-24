@@ -22,20 +22,29 @@ results = matcher.look_up_title("history of lobsters");
 
 class Matcher
 
-  def initialize (mode = {:interactive=>false, :min_score=>0.5})
-    @mode = mode;
-    @dbh = Dbman.new.dbh;
+  @@factory_settings = {
+    :interactive => false,
+    :debug       => false,
+    :title       => true,
+    :author      => false,
+    :min_score   => 0.5
+  };
+
+  def initialize (mode = {})
+    @mode = @@factory_settings.merge(mode);
+    STDERR.puts "## mode: #{@mode}";
+    @dbh  = Dbman.new.dbh;
     @query_cache = {0 => @dbh.prepare("SELECT word FROM ht_word WHERE word_id = 0")};
-    get_full_title_by_oclc_sql = 'SELECT title FROM ht_oclc_title WHERE oclc = ?';
+    get_full_title_by_oclc_sql = 'SELECT t.title, a.author FROM ht_oclc_title AS t LEFT JOIN ht_oclc_author AS a ON (t.oclc = a.oclc) WHERE t.oclc = ?';
     @get_full_title_by_oclc    = @dbh.prepare(get_full_title_by_oclc_sql);
     @stop_t = Stopword.new('title').get_hash();
     @stop_a = Stopword.new('author').get_hash();
   end
 
+  # Caches query for variable number of WHERE-args and proportional HAVING
   def get_words_oclc_q (kind, search_words)
-    # Caches query for variable number of WHERE-args and proportional HAVING
     wc = search_words.size;
-    STDERR.puts "wc is #{wc}: #{search_words.join(',')}";
+    # STDERR.puts "wc #{wc} #{kind}";
     if !@query_cache.key?(wc) then
       qmarks = (['?'] * wc).join(',');
       # if there are e.g. 8 search_words then require at least 8/2 in the HAVING.
@@ -57,12 +66,15 @@ class Matcher
   def look_up_title (search_title, search_author='')
     search_title_words  = Strutil.get_words(search_title).reject{|w| @stop_t.key?(w)};
     search_author_words = Strutil.get_words(search_author).reject{|w| @stop_a.key?(w)};
-    search_all_words    = [search_title_words + search_author_words].uniq;
-    STDERR.puts "## Search title: #{search_title}";
-    STDERR.puts "## Search words: #{search_title_words.join(',')}";
-    oclc_t_words = {};
-    oclc_a_words = {};
+    search_all_words    = (search_title_words + search_author_words).uniq;
 
+    if @mode[:debug] then
+      STDERR.puts "## Search title: #{search_title}";
+      STDERR.puts "## Search author: #{search_author}" if @mode[:author];
+      STDERR.puts "## Search words: #{search_all_words.join(',')}";
+    end
+    
+    oclc_words = {};
     if search_all_words.empty? then
       return [];
     end
@@ -71,35 +83,47 @@ class Matcher
     get_title_oclcs_q  = get_words_oclc_q('title', search_title_words);
     get_author_oclcs_q = get_words_oclc_q('author', search_author_words);
 
-    # get all ocns and their associated words based on search title
-    res_t = get_title_oclcs_q.execute(*search_title_words);
-    res_t.each do |row|
-      oclc = row[:oclc];
-      oclc_t_words[oclc] = row[:words].split(',');
+    # Get all the oclcs associated with all the words in search author/title
+    [get_title_oclcs_q.execute(*search_title_words),      
+     get_author_oclcs_q.execute(*search_author_words)].each do |res|
+      res.each do |row|
+        oclc = row[:oclc];
+        oclc_words[oclc] ||= [];
+        oclc_words[oclc] << row[:words].split(',');
+      end
+      res.free;
     end
-    res_t.free;
-    res_a = get_author_oclcs_q.execute(*search_author_words);
-    res_a.each do |row|
-      oclc = row[:oclc];
-      oclc_a_words[oclc] = row[:words].split(',');
-    end
-    res_a.free;
 
     scores     = [];
     oclc_title = {};
 
-    # for each oclc=>[words], compare against search_title and score
-
-    # todo: somehow repeat this for oclc_a_words
-    oclc_t_words.each do |match_ocn, match_words|
-      match_title = '';
+    # for each oclc=>[words], compare against search_title/author and score
+    oclc_words.each do |match_ocn, match_words|
+      match_words = match_words.flatten.sort.uniq;
       res = @get_full_title_by_oclc.execute(match_ocn);
       res.each do |row|
-        match_title    = row[:title].chomp;
-        match_title_words = Strutil.get_words(match_title).reject{|w| @stop_t.key?(w)};
-        precision = match_words.size.to_f / search_title_words.size.to_f;
-        recall    = match_words.size.to_f / (search_title_words + match_title_words).uniq.size.to_f;
-        score     = (precision + recall)  / 2;
+
+        true_pos  = match_words & search_all_words;
+        false_pos = match_words - search_all_words;
+        false_neg = search_all_words - match_words;
+
+        precision = true_pos.size.to_f / (true_pos.size + false_pos.size);
+        recall    = true_pos.size.to_f / (true_pos.size + false_neg.size);
+        score     = (precision + recall) / 2;
+
+        if @mode[:debug] then
+          puts "true_pos  = #{match_words & search_all_words}";
+          puts "false_pos = #{match_words - search_all_words}";
+          puts "false_neg = #{search_all_words - match_words}";
+          puts "p #{precision} = #{true_pos.size.to_f} / #{(true_pos.size + false_pos.size)}";
+          puts "r #{recall}    = #{true_pos.size.to_f} / #{(true_pos.size + false_neg.size)}";
+          puts "s #{score}     = #{(precision + recall)} / 2";
+        end
+
+        if precision > 1.0 || recall > 1.0 then
+          raise RangeError.new("Bad math!");
+        end
+
         # Only bother if score is above min_score.
         if score >= @mode[:min_score] then
           scores << {
@@ -107,8 +131,9 @@ class Matcher
             :score        => score,
             :precision    => precision,
             :recall       => recall,
-            :title        => match_title,
-            :search_words => search_title_words,
+            :title        => row[:title],
+            :author       => row[:author],
+            :search_words => search_all_words,
             :match_words  => match_words,
           };
         end
@@ -147,5 +172,5 @@ class Matcher
 end
 
 if $0 == __FILE__ then
-  Matcher.new({:interactive => true, :min_score=>0.67}).run();
+  Matcher.new({:interactive=>true, :debug=>true, :min_score=>0.67}).run();
 end

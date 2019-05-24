@@ -17,10 +17,9 @@ fm.run();
 =end
 
 class FileMatcher
-  def initialize (min_score, *files)
-    @min_score = min_score;
+  def initialize (mode, *files)
     @files     = files;
-    @matcher   = Matcher.new({:interactive=>false, :min_score=>@min_score});
+    @matcher   = Matcher.new(mode);
   end
 
   # Inherit from FileMatcher.rb and override this method with custom file handler
@@ -37,9 +36,9 @@ class FileMatcher
   
   def run
     @files.each do |f|
-      get_records(f) do |id, record|
-        out_hash = {:id => id, :lookup_title => record, :results => []};
-        results = @matcher.look_up_title(record);
+      get_records(f) do |id, title, author|
+        out_hash = {:id => id, :lookup_title => title, :results => []};
+        results = @matcher.look_up_title(title, author);
         if !results.empty? then
           results.sort_by{|x| x[:score]}.each do |r|
             out_hash[:results] << r;
@@ -52,6 +51,6 @@ class FileMatcher
 end
 
 if $0 == __FILE__ then
-  min_score = ARGV.shift;
-  FileMatcher.new(min_score.to_f, *ARGV).run();
+  mode = {:min_score => ARGV.shift.to_i};
+  FileMatcher.new(mode, *ARGV).run();
 end

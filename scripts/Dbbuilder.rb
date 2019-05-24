@@ -24,7 +24,6 @@ class Dbbuilder
   end
 
   def get_word_id (word, kind)
-    
     # memoized
     if @word_cache[kind].key?(word) then
       @cache_hit += 1;
